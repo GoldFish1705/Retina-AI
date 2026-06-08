@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Analysis {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // ข้อมูลผู้ป่วย (optional)
+  patientName   String?
+  patientId     String?
+
+  // ข้อมูลภาพ
+  imageName     String
+  imageSize     Int
+
+  // ผลวิเคราะห์
+  riskLevel     String   // ไม่พบความเสี่ยง, ความเสี่ยงต่ำ, ความเสี่ยงปานกลาง, ความเสี่ยงสูง
+  confidence    Int      // 0-100
+  grade         String   // No DR, Mild NPDR, Moderate NPDR, Severe NPDR, Proliferative DR
+  urgency       String   // ไม่เร่งด่วน, ควรตรวจติดตาม, ควรพบแพทย์เร็ว, เร่งด่วนมาก
+  description   String
+  findings      String   // JSON array string
+  recommendations String // JSON array string
+
+  // ข้อมูลดิบจาก AI (ถ้าต้องการเก็บ)
+  rawResponse   String?
+}
