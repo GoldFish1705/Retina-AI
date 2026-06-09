@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import SessionProviderWrapper from "@/components/SessionProviderWrapper";
+import Navbar from "@/components/Navbar";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,18 +35,14 @@ export const metadata: Metadata = {
     description: "คัดกรองเบาหวานขึ้นตาด้วย AI",
   },
 };
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="th" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+        <SessionProviderWrapper>
+          <Navbar />
+          {children}
+        </SessionProviderWrapper>
         <Toaster />
       </body>
     </html>
