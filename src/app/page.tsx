@@ -106,7 +106,7 @@ export default function Home() {
       const formData = new FormData()
       formData.append('image', imageFile)
       formData.append('gradeIdx', String(GRADE_NAMES.indexOf(result.grade)))
-      const res = await fetch(`${FLASK_URL}/gradcam`, { method: 'POST', body: formData })
+      const res = await fetch('/api/gradcam', { method: 'POST', body: formData })
       const data = await res.json()
       if (data.success) setHeatmap(data.heatmap)
     } catch {}
