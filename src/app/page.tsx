@@ -2,28 +2,20 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useSession, signIn, signOut } from 'next-auth/react'
+import { useSession, signIn } from 'next-auth/react'
 import {
   Eye, Upload, Camera, Shield, AlertTriangle, CheckCircle2,
-  ChevronDown, Activity, Heart, Info, RotateCcw, FileImage,
-  Clock, Stethoscope, ArrowRight, Sparkles, AlertCircle, Loader2,
-  X, LogIn, LogOut, History, User
+  Activity, Heart, Info, RotateCcw, FileImage,
+  Clock, Stethoscope, ArrowRight, Sparkles, AlertCircle, Loader2, X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion'
-import router from 'next/dist/shared/lib/router/router'
-import { useRouter } from 'next/dist/client/components/navigation'
 
-// Types
 interface AnalysisResult {
   riskLevel: string
   confidence: number
@@ -36,7 +28,6 @@ interface AnalysisResult {
 
 type AppState = 'idle' | 'preview' | 'analyzing' | 'result' | 'error'
 
-// Risk level config
 const riskConfig: Record<string, { color: string; bg: string; border: string; icon: typeof CheckCircle2 }> = {
   'ไม่พบความเสี่ยง': { color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircle2 },
   'ความเสี่ยงต่ำ': { color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', icon: CheckCircle2 },
@@ -44,16 +35,15 @@ const riskConfig: Record<string, { color: string; bg: string; border: string; ic
   'ความเสี่ยงสูง': { color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: AlertCircle },
 }
 
-const urgencyConfig: Record<string, { color: string; bg: string; badge: string }> = {
-  'ไม่เร่งด่วน': { color: 'text-emerald-700', bg: 'bg-emerald-100', badge: 'bg-emerald-500' },
-  'ควรตรวจติดตาม': { color: 'text-teal-700', bg: 'bg-teal-100', badge: 'bg-teal-500' },
-  'ควรพบแพทย์เร็ว': { color: 'text-amber-700', bg: 'bg-amber-100', badge: 'bg-amber-500' },
-  'เร่งด่วนมาก': { color: 'text-red-700', bg: 'bg-red-100', badge: 'bg-red-500' },
+const urgencyConfig: Record<string, { color: string; bg: string }> = {
+  'ไม่เร่งด่วน': { color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  'ควรตรวจติดตาม': { color: 'text-teal-700', bg: 'bg-teal-100' },
+  'ควรพบแพทย์เร็ว': { color: 'text-amber-700', bg: 'bg-amber-100' },
+  'เร่งด่วนมาก': { color: 'text-red-700', bg: 'bg-red-100' },
 }
 
 export default function Home() {
   const { data: session } = useSession()
-  const router = useRouter()
   const [appState, setAppState] = useState<AppState>('idle')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -64,66 +54,29 @@ export default function Home() {
 
   const handleFile = useCallback((file: File) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
-    if (!allowedTypes.includes(file.type)) {
-      setErrorMessage('รองรับเฉพาะไฟล์ภาพประเภท JPEG, PNG และ WebP')
-      setAppState('error')
-      return
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('ขนาดไฟล์ต้องไม่เกิน 10 MB')
-      setAppState('error')
-      return
-    }
+    if (!allowedTypes.includes(file.type)) { setErrorMessage('รองรับเฉพาะไฟล์ภาพประเภท JPEG, PNG และ WebP'); setAppState('error'); return }
+    if (file.size > 10 * 1024 * 1024) { setErrorMessage('ขนาดไฟล์ต้องไม่เกิน 10 MB'); setAppState('error'); return }
     setImageFile(file)
     const reader = new FileReader()
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string)
-      setAppState('preview')
-    }
+    reader.onload = (e) => { setImagePreview(e.target?.result as string); setAppState('preview') }
     reader.readAsDataURL(file)
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }, [handleFile])
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragOver(false)
-  }, [])
+  const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); const file = e.dataTransfer.files[0]; if (file) handleFile(file) }, [handleFile])
+  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true) }, [])
+  const handleDragLeave = useCallback(() => { setIsDragOver(false) }, [])
 
   const analyzeImage = async () => {
     if (!imageFile) return
     setAppState('analyzing')
-
     try {
       const formData = new FormData()
       formData.append('image', imageFile)
-
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        body: formData,
-      })
-
+      const response = await fetch('/api/analyze', { method: 'POST', body: formData })
       const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        setErrorMessage(data.error || 'เกิดข้อผิดพลาดในการวิเคราะห์')
-        setAppState('error')
-        return
-      }
-
+      if (!response.ok || !data.success) { setErrorMessage(data.error || 'เกิดข้อผิดพลาดในการวิเคราะห์'); setAppState('error'); return }
       setResult(data.result)
       setAppState('result')
-
-      // บันทึกผลถ้า login แล้ว
       if (session) {
         await fetch('/api/scans', {
           method: 'POST',
@@ -140,225 +93,80 @@ export default function Home() {
           }),
         })
       }
-    } catch {
-      setErrorMessage('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่')
-      setAppState('error')
-    }
+    } catch { setErrorMessage('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่'); setAppState('error') }
   }
 
   const resetApp = () => {
-    setAppState('idle')
-    setImagePreview(null)
-    setImageFile(null)
-    setResult(null)
-    setErrorMessage('')
+    setAppState('idle'); setImagePreview(null); setImageFile(null); setResult(null); setErrorMessage('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/60">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <Eye className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">RetinaAI Screen</h1>
-              <p className="text-xs text-slate-500 leading-tight">คัดกรองเบาหวานขึ้นตาด้วย AI</p>
-            </div>
-          </div>
-
-          {/* Auth Section */}
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-200 text-xs hidden sm:flex">
-              <Sparkles className="w-3 h-3 mr-1" />
-              By GoldFish
-            </Badge>
-
-            {session ? (
-              <div className="flex items-center gap-2">
-                {session.user?.image ? (
-                  <img src={session.user.image} alt="avatar" className="w-8 h-8 rounded-full border-2 border-teal-200" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                    <User className="w-4 h-4 text-teal-600" />
-                  </div>
-                )}
-                <span className="text-sm text-slate-700 hidden sm:block">{session.user?.name}</span>
-                <Button
-  variant="ghost"
-  size="sm"
-  onClick={() => router.push('/history')}
-  className="text-slate-500 hover:text-slate-700 text-xs"
->
-  <History className="w-4 h-4 mr-1" />
-  ประวัติ
-                
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => signOut()}
-                  className="text-slate-500 hover:text-slate-700 text-xs"
-                >
-                  <LogOut className="w-4 h-4 mr-1" />
-                  ออกจากระบบ
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => signIn('google')}
-                className="border-teal-200 text-teal-700 hover:bg-teal-50 text-xs"
-              >
-                <LogIn className="w-4 h-4 mr-1" />
-                เข้าสู่ระบบ
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10">
         <AnimatePresence mode="wait">
-          {/* IDLE STATE - Hero + Upload */}
+
+          {/* IDLE */}
           {appState === 'idle' && (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-            >
-              {/* Hero Section */}
+            <motion.div key="idle" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }}>
               <div className="text-center mb-8 sm:mb-12">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.1, duration: 0.5 }}
-                  className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 mb-6 shadow-xl shadow-teal-500/25"
-                >
+                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.1, duration: 0.5 }} className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 mb-6 shadow-xl shadow-teal-500/25">
                   <Eye className="w-10 h-10 text-white" />
                 </motion.div>
-                <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">
-                  คัดกรองเบาหวานขึ้นตา
-                </h2>
-                <p className="text-lg text-slate-600 max-w-2xl mx-auto mb-2">
-                  วิเคราะห์ความเสี่ยงจากภาพถ่ายจอประสาทตาด้วยปัญญาประดิษฐ์
-                </p>
-                <p className="text-sm text-slate-400 max-w-xl mx-auto">
-                  อัปโหลดภาพถ่ายจอประสาทตา (Fundus Photography) แล้วให้ AI ช่วยวิเคราะห์ความเสี่ยงเบาหวานขึ้นตาได้ภายในไม่กี่วินาที
-                </p>
-                {!session && (
-                  <p className="text-xs text-slate-400 mt-3">
-                    <button onClick={() => signIn('google')} className="text-teal-600 hover:underline">เข้าสู่ระบบ</button> เพื่อบันทึกประวัติการตรวจ
-                  </p>
-                )}
+                <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-3">คัดกรองเบาหวานขึ้นตา</h2>
+                <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-2">วิเคราะห์ความเสี่ยงจากภาพถ่ายจอประสาทตาด้วยปัญญาประดิษฐ์</p>
+                <p className="text-sm text-slate-400 max-w-xl mx-auto">อัปโหลดภาพถ่ายจอประสาทตา (Fundus Photography) แล้วให้ AI ช่วยวิเคราะห์ความเสี่ยงเบาหวานขึ้นตาได้ภายในไม่กี่วินาที</p>
+                {!session && <p className="text-xs text-slate-400 mt-3"><button onClick={() => signIn('google')} className="text-teal-600 hover:underline">เข้าสู่ระบบ</button> เพื่อบันทึกประวัติการตรวจ</p>}
               </div>
 
-              {/* Upload Area */}
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-                className="max-w-2xl mx-auto mb-10"
-              >
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`
-                    relative cursor-pointer rounded-2xl border-2 border-dashed p-8 sm:p-12
-                    transition-all duration-300 text-center
-                    ${isDragOver
-                      ? 'border-teal-400 bg-teal-50/50 scale-[1.02]'
-                      : 'border-slate-300 bg-white hover:border-teal-300 hover:bg-teal-50/30'
-                    }
-                  `}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) handleFile(file)
-                    }}
-                  />
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }} className="max-w-2xl mx-auto mb-10">
+                <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onClick={() => fileInputRef.current?.click()}
+                  className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 sm:p-12 transition-all duration-300 text-center ${isDragOver ? 'border-teal-400 bg-teal-50/50 scale-[1.02]' : 'border-slate-300 bg-white dark:bg-gray-800 dark:border-gray-600 hover:border-teal-300 hover:bg-teal-50/30'}`}>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFile(file) }} />
                   <div className="flex flex-col items-center gap-4">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors ${isDragOver ? 'bg-teal-100' : 'bg-slate-100'}`}>
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors ${isDragOver ? 'bg-teal-100' : 'bg-slate-100 dark:bg-gray-700'}`}>
                       <Upload className={`w-7 h-7 ${isDragOver ? 'text-teal-600' : 'text-slate-400'}`} />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-slate-700 mb-1">
-                        {isDragOver ? 'วางไฟล์ที่นี่' : 'ลากไฟล์มาวาง หรือคลิกเพื่ออัปโหลด'}
-                      </p>
-                      <p className="text-sm text-slate-400">
-                        รองรับ JPEG, PNG, WebP (สูงสุด 10 MB)
-                      </p>
+                      <p className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">{isDragOver ? 'วางไฟล์ที่นี่' : 'ลากไฟล์มาวาง หรือคลิกเพื่ออัปโหลด'}</p>
+                      <p className="text-sm text-slate-400">รองรับ JPEG, PNG, WebP (สูงสุด 10 MB)</p>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="border-teal-200 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        fileInputRef.current?.click()
-                      }}
-                    >
-                      <Camera className="w-4 h-4 mr-2" />
-                      เลือกไฟล์ภาพ
+                    <Button variant="outline" className="border-teal-200 text-teal-700 hover:bg-teal-50" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}>
+                      <Camera className="w-4 h-4 mr-2" />เลือกไฟล์ภาพ
                     </Button>
                   </div>
                 </div>
               </motion.div>
 
-              {/* Info Cards */}
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.5 }}
-                className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mx-auto mb-10"
-              >
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5 }} className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-4xl mx-auto mb-10">
                 {[
                   { icon: Shield, title: 'วิเคราะห์ด้วย AI', desc: 'ใช้โมเดล AI วิเคราะห์ภาพถ่ายจอประสาทตาอัตโนมัติ', color: 'from-teal-500 to-teal-600', shadow: 'shadow-teal-500/20' },
                   { icon: Activity, title: 'ประเมินความเสี่ยง', desc: 'จัดระดับความเสี่ยงตามเกณฑ์ทางการแพทย์มาตรฐาน', color: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/20' },
                   { icon: Heart, title: 'คำแนะนำที่เหมาะสม', desc: 'รับคำแนะนำและขั้นตอนถัดไปตามผลการวิเคราะห์', color: 'from-cyan-500 to-cyan-600', shadow: 'shadow-cyan-500/20' },
                 ].map((item, i) => (
-                  <Card key={i} className="border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                  <Card key={i} className="border-slate-200/60 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-5">
                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center mb-3 shadow-lg ${item.shadow}`}>
                         <item.icon className="w-5 h-5 text-white" />
                       </div>
-                      <h3 className="font-semibold text-slate-800 mb-1">{item.title}</h3>
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">{item.title}</h3>
                       <p className="text-sm text-slate-500">{item.desc}</p>
                     </CardContent>
                   </Card>
                 ))}
               </motion.div>
 
-              {/* DR Stages Info */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.5 }}
-                className="max-w-4xl mx-auto"
-              >
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="dr-info" className="border-slate-200/60">
-                    <AccordionTrigger className="hover:no-underline hover:bg-slate-50/50 px-4 rounded-lg">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7, duration: 0.5 }} className="max-w-4xl mx-auto">
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="dr-info" className="border-slate-200/60 dark:border-gray-700">
+                    <AccordionTrigger className="hover:no-underline hover:bg-slate-50/50 dark:hover:bg-gray-800 px-4 rounded-lg">
                       <div className="flex items-center gap-2">
                         <Info className="w-4 h-4 text-teal-600" />
-                        <span className="font-medium text-slate-700">รู้จักโรคเบาหวานขึ้นตา (Diabetic Retinopathy)</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">รู้จักโรคเบาหวานขึ้นตา (Diabetic Retinopathy)</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4">
-                      <div className="space-y-4 text-sm text-slate-600">
+                      <div className="space-y-4 text-sm text-slate-600 dark:text-slate-400">
                         <p>โรคเบาหวานขึ้นตา (Diabetic Retinopathy) เป็นภาวะแทรกซ้อนของโรคเบาหวานที่ส่งผลต่อหลอดเลือดในเรตินา หากไม่ได้รับการรักษาอาจนำไปสู่การสูญเสียการมองเห็นได้</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {[
@@ -367,7 +175,7 @@ export default function Home() {
                             { grade: 'Moderate NPDR', desc: 'พบเลือดออกและ Exudates', color: 'bg-amber-100 text-amber-700' },
                             { grade: 'Severe NPDR', desc: 'พบลักษณะรุนแรงหลายอย่าง', color: 'bg-orange-100 text-orange-700' },
                           ].map((stage, i) => (
-                            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50">
+                            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-gray-700">
                               <Badge className={`${stage.color} text-xs font-medium`}>{stage.grade}</Badge>
                               <span className="text-xs">{stage.desc}</span>
                             </div>
@@ -381,11 +189,11 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* PREVIEW STATE */}
+          {/* PREVIEW */}
           {appState === 'preview' && (
             <motion.div key="preview" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="max-w-2xl mx-auto">
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">ตรวจสอบภาพก่อนวิเคราะห์</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">ตรวจสอบภาพก่อนวิเคราะห์</h2>
                 <p className="text-sm text-slate-500">กรุณาตรวจสอบว่าเป็นภาพถ่ายจอประสาทตาที่ชัดเจน</p>
               </div>
               <Card className="border-slate-200/60 shadow-lg overflow-hidden mb-6">
@@ -396,19 +204,17 @@ export default function Home() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="p-4 flex items-center gap-3 bg-slate-50">
+                  <div className="p-4 flex items-center gap-3 bg-slate-50 dark:bg-gray-800">
                     <FileImage className="w-5 h-5 text-slate-400" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700 truncate">{imageFile?.name}</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{imageFile?.name}</p>
                       <p className="text-xs text-slate-400">{imageFile ? `${(imageFile.size / 1024).toFixed(1)} KB • ${imageFile.type.split('/')[1].toUpperCase()}` : ''}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
               <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 h-12 border-slate-300" onClick={resetApp}>
-                  <RotateCcw className="w-4 h-4 mr-2" />เลือกภาพใหม่
-                </Button>
+                <Button variant="outline" className="flex-1 h-12 border-slate-300" onClick={resetApp}><RotateCcw className="w-4 h-4 mr-2" />เลือกภาพใหม่</Button>
                 <Button className="flex-1 h-12 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white shadow-lg shadow-teal-500/25" onClick={analyzeImage}>
                   <Sparkles className="w-4 h-4 mr-2" />เริ่มวิเคราะห์<ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -416,14 +222,14 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ANALYZING STATE */}
+          {/* ANALYZING */}
           {appState === 'analyzing' && (
             <motion.div key="analyzing" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="max-w-2xl mx-auto">
               <div className="text-center py-12">
                 <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: 'linear' }} className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 mb-8 shadow-xl shadow-teal-500/25">
                   <Eye className="w-10 h-10 text-white" />
                 </motion.div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-3">กำลังวิเคราะห์ภาพ</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">กำลังวิเคราะห์ภาพ</h2>
                 <p className="text-slate-500 mb-8">AI กำลังตรวจสอบลักษณะผิดปกติในภาพถ่ายจอประสาทตา...</p>
                 {imagePreview && (
                   <div className="relative w-40 h-40 mx-auto rounded-xl overflow-hidden border-4 border-white shadow-xl mb-8">
@@ -438,7 +244,7 @@ export default function Home() {
                     { text: 'กำลังประเมินหลอดเลือดและเลือดออก...', delay: 3000 },
                     { text: 'กำลังสรุปผลการวิเคราะห์...', delay: 4500 },
                   ].map((step, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: step.delay / 1000, duration: 0.3 }} className="flex items-center gap-2 text-sm text-slate-600">
+                    <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: step.delay / 1000, duration: 0.3 }} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <Loader2 className="w-4 h-4 animate-spin text-teal-500" />{step.text}
                     </motion.div>
                   ))}
@@ -447,11 +253,11 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* RESULT STATE */}
+          {/* RESULT */}
           {appState === 'result' && result && (
             <motion.div key="result" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }}>
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">ผลการวิเคราะห์</h2>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">ผลการวิเคราะห์</h2>
                 <p className="text-sm text-slate-500">ผลการคัดกรองเบาหวานขึ้นตาจากภาพถ่ายจอประสาทตา</p>
                 {session && <p className="text-xs text-teal-600 mt-1">✓ บันทึกผลการตรวจเรียบร้อยแล้ว</p>}
               </div>
@@ -467,6 +273,7 @@ export default function Home() {
                   {(() => {
                     const config = riskConfig[result.riskLevel] || riskConfig['ไม่พบความเสี่ยง']
                     const IconComp = config.icon
+                    const uc = urgencyConfig[result.urgency] || urgencyConfig['ไม่เร่งด่วน']
                     return (
                       <Card className={`${config.border} ${config.bg} shadow-sm`}>
                         <CardContent className="p-5">
@@ -477,23 +284,18 @@ export default function Home() {
                               <p className={`text-lg font-bold ${config.color}`}>{result.riskLevel}</p>
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 mb-3">
                             <div className="flex justify-between text-xs">
                               <span className="text-slate-500">ความมั่นใจ</span>
                               <span className={`font-semibold ${config.color}`}>{result.confidence}%</span>
                             </div>
                             <Progress value={result.confidence} className="h-2" />
                           </div>
-                          {(() => {
-                            const uc = urgencyConfig[result.urgency] || urgencyConfig['ไม่เร่งด่วน']
-                            return (
-                              <div className="mt-3 flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-slate-400" />
-                                <span className="text-xs text-slate-500">ความเร่งด่วน:</span>
-                                <Badge className={`${uc.bg} ${uc.color} text-xs border-0`}>{result.urgency}</Badge>
-                              </div>
-                            )
-                          })()}
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs text-slate-500">ความเร่งด่วน:</span>
+                            <Badge className={`${uc.bg} ${uc.color} text-xs border-0`}>{result.urgency}</Badge>
+                          </div>
                         </CardContent>
                       </Card>
                     )
@@ -502,7 +304,7 @@ export default function Home() {
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Stethoscope className="w-5 h-5 text-teal-600" />
-                        <span className="text-sm font-medium text-slate-700">ระดับโรค (ICDR)</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">ระดับโรค (ICDR)</span>
                       </div>
                       <Badge className="bg-slate-900 text-white text-sm px-3 py-1">{result.grade}</Badge>
                     </CardContent>
@@ -511,42 +313,34 @@ export default function Home() {
                 <div className="lg:col-span-3 space-y-4">
                   <Card className="border-slate-200/60 shadow-sm">
                     <CardContent className="p-5">
-                      <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                        <Info className="w-4 h-4 text-teal-600" />สรุปผลการวิเคราะห์
-                      </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed">{result.description}</p>
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2"><Info className="w-4 h-4 text-teal-600" />สรุปผลการวิเคราะห์</h3>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{result.description}</p>
                     </CardContent>
                   </Card>
-                  {result.findings && result.findings.length > 0 && (
+                  {result.findings?.length > 0 && (
                     <Card className="border-slate-200/60 shadow-sm">
                       <CardContent className="p-5">
-                        <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                          <Eye className="w-4 h-4 text-teal-600" />สิ่งที่พบจากภาพ
-                        </h3>
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2"><Eye className="w-4 h-4 text-teal-600" />สิ่งที่พบจากภาพ</h3>
                         <div className="space-y-2">
                           {result.findings.map((finding, i) => (
-                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50">
-                              <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span className="text-xs font-bold text-teal-700">{i + 1}</span>
-                              </div>
-                              <p className="text-sm text-slate-600">{finding}</p>
+                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-gray-700">
+                              <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0 mt-0.5"><span className="text-xs font-bold text-teal-700">{i + 1}</span></div>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{finding}</p>
                             </div>
                           ))}
                         </div>
                       </CardContent>
                     </Card>
                   )}
-                  {result.recommendations && result.recommendations.length > 0 && (
+                  {result.recommendations?.length > 0 && (
                     <Card className="border-slate-200/60 shadow-sm">
                       <CardContent className="p-5">
-                        <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                          <Heart className="w-4 h-4 text-teal-600" />คำแนะนำ
-                        </h3>
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2"><Heart className="w-4 h-4 text-teal-600" />คำแนะนำ</h3>
                         <div className="space-y-2">
                           {result.recommendations.map((rec, i) => (
-                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-teal-50/50">
+                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-teal-50/50 dark:bg-teal-900/20">
                               <CheckCircle2 className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" />
-                              <p className="text-sm text-slate-600">{rec}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{rec}</p>
                             </div>
                           ))}
                         </div>
@@ -564,34 +358,26 @@ export default function Home() {
                       </div>
                     </CardContent>
                   </Card>
-                  <div className="flex gap-3 pt-2">
-                    <Button variant="outline" className="flex-1 h-11 border-slate-300" onClick={resetApp}>
-                      <RotateCcw className="w-4 h-4 mr-2" />วิเคราะห์ภาพใหม่
-                    </Button>
-                  </div>
+                  <Button variant="outline" className="w-full h-11 border-slate-300" onClick={resetApp}><RotateCcw className="w-4 h-4 mr-2" />วิเคราะห์ภาพใหม่</Button>
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* ERROR STATE */}
+          {/* ERROR */}
           {appState === 'error' && (
             <motion.div key="error" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="max-w-md mx-auto text-center py-12">
-              <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-6">
-                <AlertCircle className="w-8 h-8 text-red-500" />
-              </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">เกิดข้อผิดพลาด</h2>
+              <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-6"><AlertCircle className="w-8 h-8 text-red-500" /></div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">เกิดข้อผิดพลาด</h2>
               <p className="text-sm text-slate-500 mb-6">{errorMessage}</p>
-              <Button onClick={resetApp} className="bg-teal-600 hover:bg-teal-700 text-white">
-                <RotateCcw className="w-4 h-4 mr-2" />ลองใหม่อีกครั้ง
-              </Button>
+              <Button onClick={resetApp} className="bg-teal-600 hover:bg-teal-700 text-white"><RotateCcw className="w-4 h-4 mr-2" />ลองใหม่อีกครั้ง</Button>
             </motion.div>
           )}
+
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200/60 bg-white/60 backdrop-blur-sm mt-auto">
+      <footer className="border-t border-slate-200/60 dark:border-gray-700 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm mt-auto">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
             <p>RetinaAI Screen — เครื่องมือคัดกรองเบาหวานขึ้นตาด้วย AI (เบื้องต้น)</p>
