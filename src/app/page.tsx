@@ -292,38 +292,6 @@ export default function Home() {
                     </CardContent>
                   </Card>
 
-                  {/* Heatmap */}
-                  <Card className="border-slate-200/60 shadow-lg overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="relative aspect-[4/3] bg-slate-900 flex items-center justify-center overflow-hidden">
-                        {heatmap ? (
-                          <img src={`data:image/jpeg;base64,${heatmap}`} alt="AI Heatmap" className="max-w-full max-h-full object-contain" />
-                        ) : (
-                          <div className="flex flex-col items-center gap-3 text-center p-6">
-                            <Eye className="w-8 h-8 text-slate-500" />
-                            <p className="text-xs text-slate-400">กดปุ่มด้านล่างเพื่อดูจุดที่ AI โฟกัส</p>
-                            <p className="text-xs text-slate-500">🔴 แดง = สำคัญมาก · 🔵 น้ำเงิน = สำคัญน้อย</p>
-                          </div>
-                        )}
-                        {loadingHeatmap && (
-                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                            <div className="text-center">
-                              <Loader2 className="w-8 h-8 animate-spin text-teal-400 mx-auto mb-2" />
-                              <p className="text-xs text-white">กำลังคำนวณ heatmap...</p>
-                              <p className="text-xs text-slate-400 mt-1">ใช้เวลา ~30 วินาที</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3 bg-slate-50 dark:bg-gray-800">
-                        <Button variant="outline" size="sm" className="w-full border-teal-200 text-teal-700 hover:bg-teal-50 text-xs" onClick={fetchHeatmap} disabled={loadingHeatmap}>
-                          {loadingHeatmap ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Eye className="w-3 h-3 mr-1" />}
-                          {heatmap ? 'คำนวณ Heatmap ใหม่' : 'แสดงจุดที่ AI โฟกัส'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
                   {/* Risk Level */}
                   {(() => {
                     const config = riskConfig[result.riskLevel] || riskConfig['ไม่พบความเสี่ยง']
