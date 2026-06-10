@@ -12,9 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
-} from '@/components/ui/accordion'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 interface AnalysisResult {
   riskLevel: string
@@ -42,6 +40,9 @@ const urgencyConfig: Record<string, { color: string; bg: string }> = {
   'เร่งด่วนมาก': { color: 'text-red-700', bg: 'bg-red-100' },
 }
 
+const FLASK_URL = 'https://dr-api-eamg.onrender.com'
+const GRADE_NAMES = ['No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR']
+
 export default function Home() {
   const { data: session } = useSession()
   const [appState, setAppState] = useState<AppState>('idle')
@@ -50,6 +51,8 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [isDragOver, setIsDragOver] = useState(false)
+  const [heatmap, setHeatmap] = useState<string | null>(null)
+  const [loadingHeatmap, setLoadingHeatmap] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = useCallback((file: File) => {
@@ -82,7 +85,7 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            grade: ['No DR','Mild NPDR','Moderate NPDR','Severe NPDR','Proliferative DR'].indexOf(data.result.grade),
+            grade: GRADE_NAMES.indexOf(data.result.grade),
             gradeName: data.result.grade,
             riskLevel: data.result.riskLevel,
             confidence: data.result.confidence,
@@ -96,8 +99,23 @@ export default function Home() {
     } catch { setErrorMessage('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาลองใหม่'); setAppState('error') }
   }
 
+  const fetchHeatmap = async () => {
+    if (!imageFile || !result) return
+    setLoadingHeatmap(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', imageFile)
+      formData.append('gradeIdx', String(GRADE_NAMES.indexOf(result.grade)))
+      const res = await fetch(`${FLASK_URL}/gradcam`, { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.success) setHeatmap(data.heatmap)
+    } catch {}
+    setLoadingHeatmap(false)
+  }
+
   const resetApp = () => {
-    setAppState('idle'); setImagePreview(null); setImageFile(null); setResult(null); setErrorMessage('')
+    setAppState('idle'); setImagePreview(null); setImageFile(null)
+    setResult(null); setErrorMessage(''); setHeatmap(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -263,13 +281,50 @@ export default function Home() {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <div className="lg:col-span-2 space-y-4">
+
+                  {/* รูปต้นฉบับ */}
                   <Card className="border-slate-200/60 shadow-lg overflow-hidden">
                     <CardContent className="p-0">
                       <div className="relative aspect-[4/3] bg-slate-900 flex items-center justify-center overflow-hidden">
                         {imagePreview && <img src={imagePreview} alt="ภาพที่วิเคราะห์" className="max-w-full max-h-full object-contain" />}
                       </div>
+                      <p className="text-xs text-center text-slate-400 py-1">ภาพต้นฉบับ</p>
                     </CardContent>
                   </Card>
+
+                  {/* Heatmap */}
+                  <Card className="border-slate-200/60 shadow-lg overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="relative aspect-[4/3] bg-slate-900 flex items-center justify-center overflow-hidden">
+                        {heatmap ? (
+                          <img src={`data:image/jpeg;base64,${heatmap}`} alt="AI Heatmap" className="max-w-full max-h-full object-contain" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-3 text-center p-6">
+                            <Eye className="w-8 h-8 text-slate-500" />
+                            <p className="text-xs text-slate-400">กดปุ่มด้านล่างเพื่อดูจุดที่ AI โฟกัส</p>
+                            <p className="text-xs text-slate-500">🔴 แดง = สำคัญมาก · 🔵 น้ำเงิน = สำคัญน้อย</p>
+                          </div>
+                        )}
+                        {loadingHeatmap && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <div className="text-center">
+                              <Loader2 className="w-8 h-8 animate-spin text-teal-400 mx-auto mb-2" />
+                              <p className="text-xs text-white">กำลังคำนวณ heatmap...</p>
+                              <p className="text-xs text-slate-400 mt-1">ใช้เวลา ~30 วินาที</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-gray-800">
+                        <Button variant="outline" size="sm" className="w-full border-teal-200 text-teal-700 hover:bg-teal-50 text-xs" onClick={fetchHeatmap} disabled={loadingHeatmap}>
+                          {loadingHeatmap ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Eye className="w-3 h-3 mr-1" />}
+                          {heatmap ? 'คำนวณ Heatmap ใหม่' : 'แสดงจุดที่ AI โฟกัส'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Risk Level */}
                   {(() => {
                     const config = riskConfig[result.riskLevel] || riskConfig['ไม่พบความเสี่ยง']
                     const IconComp = config.icon
@@ -300,6 +355,7 @@ export default function Home() {
                       </Card>
                     )
                   })()}
+
                   <Card className="border-slate-200/60 shadow-sm">
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -310,6 +366,7 @@ export default function Home() {
                     </CardContent>
                   </Card>
                 </div>
+
                 <div className="lg:col-span-3 space-y-4">
                   <Card className="border-slate-200/60 shadow-sm">
                     <CardContent className="p-5">
